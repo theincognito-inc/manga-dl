@@ -13,6 +13,7 @@ from PIL import Image as PilImage, ImageChops
 from manga_py.crypt import sunday_webry_com
 from manga_py.crypt.puzzle import Puzzle
 from manga_py.crypt import mangago_me
+from manga_py.crypt import viz_com
 
 root_path = path.dirname(path.realpath(__file__))
 
@@ -195,4 +196,16 @@ class TestMatrix(unittest.TestCase):
             deviation = self._rmsdiff(src, ref)
             src.close()
             ref.close()
+            self.assertTrue(deviation < 10)
+
+    def test_solve_viz_com(self):
+        for i in range(7):
+            src_path = root_path + '/mosaic/viz/index{}.jfif'.format(i)
+            ref_path = root_path + '/temp/canvas{}.png'.format(i)
+            solved_path = root_path + '/mosaic/viz/canvas{}.png'.format(i)
+            ref = viz_com.solve(src_path, {'width': 800, 'height': 1200})
+            ref.save(ref_path)
+            solved = PilImage.open(solved_path)
+            deviation = self._rmsdiff(solved, ref)
+            solved.close()
             self.assertTrue(deviation < 10)

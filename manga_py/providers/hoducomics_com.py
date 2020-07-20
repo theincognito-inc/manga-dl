@@ -1,6 +1,6 @@
+from manga_py.crypt.base_lib import BaseLib
 from manga_py.provider import Provider
 from .helpers.std import Std
-from manga_py.crypt.base_lib import BaseLib
 
 
 class HoduComicsCom(Provider, Std):
@@ -48,7 +48,7 @@ class HoduComicsCom(Provider, Std):
         pass
 
     def prepare_cookies(self):
-        self.cf_protect(self.get_url())
+        self.cf_scrape(self.get_url())
 
 
 main = HoduComicsCom

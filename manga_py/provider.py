@@ -1,16 +1,18 @@
 import json
 import re
-from abc import ABCMeta
-from sys import stderr, exit
+from abc import ABC
+from sys import stderr
+from logging import info, warning, error
+from typing import Tuple
 
 from .base_classes import (
     Abstract,
     Archive,
     Base,
     Callbacks,
-    # TODO
-    CloudFlareProtect,
-    Static
+    cf_scrape,
+    Static,
+    ArchiveName,
 )
 from .fs import (
     get_temp_path,
@@ -18,16 +20,15 @@ from .fs import (
     basename,
     remove_file_query_params,
     path_join,
-    unlink,
     file_size,
 )
 from .http import MultiThreads
-from .meta import __downloader_uri__
-from .meta import __version__
 from .info import Info
+from .meta import repo_url
+from .meta import version
 
 
-class Provider(Base, Abstract, Static, Callbacks, metaclass=ABCMeta):
+class Provider(Base, Abstract, Static, Callbacks, ArchiveName, ABC):
     _volumes_count = 0
     _archive = None
     _zero_fill = False
@@ -35,6 +36,9 @@ class Provider(Base, Abstract, Static, Callbacks, metaclass=ABCMeta):
     _info = None
     _simulate = False
     _volume = None
+    _show_chapter_info = False
+    _debug = False
+    _override_name = ''
 
     def __init__(self, info: Info = None):
         super().__init__()
@@ -59,6 +63,12 @@ class Provider(Base, Abstract, Static, Callbacks, metaclass=ABCMeta):
         self._zero_fill = params.get('zero_fill')
         self._with_manga_name = params.get('with_manga_name')
         self._simulate = params.get('simulate')
+        self._show_chapter_info = params.get('show_current_chapter_info', False)
+        self._debug = params.get('debug', False)
+        self._override_name = self._params.get('override_archive_name')
+        if self._with_manga_name and self._override_name:
+            raise RuntimeError('Conflict of parameters. Please use only --with-manga-name, or --override-archive-name')
+        self._fill_arguments(params.get('arguments') or [])
 
     def process(self, url, params=None):  # Main method
         self._params['url'] = url
@@ -67,64 +77,86 @@ class Provider(Base, Abstract, Static, Callbacks, metaclass=ABCMeta):
         for i in params:
             self._params.setdefault(i, params[i])
 
+        proxy = params.get('proxy', None)
+        if proxy is not None:
+            self._storage['proxies'] = {
+                'http': proxy,
+                'https': proxy,
+            }
+
         self.prepare_cookies()
-        self._storage['manga_name'] = self.get_manga_name()
-        self._storage['main_content'] = self.content
-        self._storage['chapters'] = self._prepare_chapters(self.get_chapters())
+
+        info('Manga name: %s' % self.manga_name)
+        info('Content length %d' % len(self.content))
+        self.chapters = self._prepare_chapters(self.get_chapters())
+        info('Chapters received (%d)' % len(self.chapters))
 
         if not self._params.get('reverse_downloading', False):
-            self._storage['chapters'] = self._storage['chapters'][::-1]
+            self.chapters = self._storage['chapters'][::-1]
 
         self._storage['init_cookies'] = self._storage['cookies']
-        self._info and self._info.set_ua(self.http().user_agent)
+
+        __ua = self.http().user_agent
+
+        self._info.set_ua(__ua)
+
+        info('User-agent: "%s"' % __ua)
 
         self.loop_chapters()
 
     def _check_archive(self):
         # check
-        _path = self.get_archive_path()
+        _path = '%s.%s' % self.get_archive_path()
         not_allow_archive = not self._params.get('rewrite_exists_archives', False)
 
         return not_allow_archive and is_file(_path)
 
-    def _download_chapter(self, idx, _min, _max):
-        if idx < _min or (idx >= _max > 0) or self._check_archive():
-            return
+    def _download_chapter(self):
         if not self._simulate:
             try:
                 self.before_download_chapter()
                 self._storage['files'] = self.get_files()
                 self.loop_files()
             except Exception as e:
-                print(e, file=stderr)
+                # Main debug here
+                if self._debug:
+                    raise e
+                self.log([e], file=stderr)
                 self._info.set_last_volume_error(e)
 
     def loop_chapters(self):
-        volumes = self._storage['chapters']
         _min = self._params.get('skip_volumes', 0)
         _max = self._params.get('max_volumes', 0)
-        if _max > 0 and _min > 0:
-            _max += _min - 1
-        for idx, __url in enumerate(volumes):
+        count = 0  # count downloaded chapters
+        for idx, __url in enumerate(self.chapters):
             self.chapter_id = idx
-            self._info.add_volume(self.chapter_for_json(), self.get_archive_path())
-            self._download_chapter(idx, _min, _max)
+            if idx < _min or (count >= _max > 0) or self._check_archive():
+                info('Skip chapter %d / %s' % (idx, __url))
+                continue
+
+            info('Processed chapter %d / %s' % (idx, __url))
+
+            count += 1
+            self._info.add_volume(self.chapter_for_json(), '%s.%s' % self.get_archive_path())
+            self._download_chapter()
+
+        if count == 0 and not self.quiet:
+            print('No new chapters found', file=stderr)
 
     def loop_files(self):
         if isinstance(self._storage['files'], list):
+            if self._show_chapter_info:
+                print('\n\nCurrent chapter url: %s\n' % (self.chapter,), file=stderr)
             if len(self._storage['files']) == 0:
-                print('Error processing file: %s' % self.get_archive_name(), file=stderr)
+                # see Std
+                error('Error processing file: %s' % self.get_archive_name())
                 return
             self._archive = Archive()
             self._archive.not_change_files_extension = self._params.get('not_change_files_extension', False)
             self._archive.no_webp = self._image_params.get('no_webp', False)
             self._call_files_progress_callback()
 
-            if self._params.get('one_thread', False):
-                self._one_thread_save(self._storage['files'])
-
-            else:
-                self._multi_thread_save(self._storage['files'])
+            self._multi_thread_save(self._storage['files'])
 
             self.make_archive()
 
@@ -151,27 +183,38 @@ class Provider(Base, Abstract, Static, Callbacks, metaclass=ABCMeta):
 
         return _path
 
-    def get_archive_path(self):
-        _path = remove_file_query_params(self.get_archive_name())
+    def get_archive_path(self) -> Tuple[str, str]:
+        if self._override_name:
+            _path = "{}_{}".format(self._override_name, str(self.normal_arc_name(self.get_chapter_index().split('-'))))
+        else:
+            # see Std
+            _path = remove_file_query_params(self.get_archive_name())
         _path = self.remove_not_ascii(_path)
 
         if not _path:
             _path = str(self.chapter_id)
 
-        name = self._params.get('name', '')
-        if not len(name):
-            name = self._storage['manga_name']
+        name = self.name
 
-        return path_join(
-            self._params.get('destination', 'Manga'),
-            name,
-            _path + '.%s' % self._archive_type()
+        additional_data_name = ''
+        if self.http().has_error:
+            additional_data_name = '.ERROR'
+            self.http().has_error = False
+            warning('Error processing chapter.')
+
+        return (
+            path_join(
+                self._params.get('destination', 'Manga'),
+                name,
+                '%s%s' % (_path, additional_data_name)
+            ).replace('?', '_').replace('"', '_').replace('>', '_').replace('<', '_').replace('|', '_')  # Windows...
+            , self._archive_type()
         )
 
     def make_archive(self):
         _path = self.get_archive_path()
 
-        info = 'Site: {}\nDownloader: {}\nVersion: {}'.format(self.get_url(), __downloader_uri__, __version__)
+        info = 'Site: {}\nDownloader: {}\nVersion: {}'.format(self.get_url(), repo_url, version)
 
         # """
         # make book info
@@ -180,14 +223,18 @@ class Provider(Base, Abstract, Static, Callbacks, metaclass=ABCMeta):
         #     self._archive.add_book_info(self._arc_meta_info())
 
         self._archive.add_info(info)
+
+        if self._archive.has_error:
+            full_path = '%s.IMAGES_SKIP_ERROR.%s' % _path
+        else:
+            full_path = '%s.%s' % _path
+
         try:
-            self._archive.make(_path)
+            self._archive.make(full_path)
         except OSError as e:
-            print('')
-            print(e)
-            self.log(e, file=stderr)
+            error(e)
             self._info.set_last_volume_error(str(e))
-            unlink(_path)
+            raise e
 
     def html_fromstring(self, url, selector: str = None, idx: int = None):
         params = {}
@@ -204,30 +251,20 @@ class Provider(Base, Abstract, Static, Callbacks, metaclass=ABCMeta):
         threading = MultiThreads()
         # hack
         self._storage['current_file'] = 0
-        if self._params.get('no_multi_threads', False):
-            threading.threads = 2
+        if self._params.get('max_threads', None) is not None:
+            threading.max_threads = int(self._params.get('max_threads'))
         for idx, url in enumerate(files):
-            threading.add(self.save_file, (idx, self._multi_thread_callback, url))
+            threading.add(self.save_file, (idx, self._multi_thread_callback, url, None))
 
         threading.start()
 
-    def _one_thread_save(self, files):
-
-        for idx, __url in enumerate(files):
-            self._storage['current_file'] = idx
-            self._call_files_progress_callback()
-            self.save_file()
-        _max = len(self._storage['files'])
-        self.progress(_max, _max)
-
-    def cf_protect(self, url):
+    def cf_scrape(self, url):
         """
         WARNING! Thins function replace cookies!
         :param url: str
         :return:
         """
-        cf = CloudFlareProtect()
-        params = cf.run(url)
+        params = cf_scrape(url)
         if len(params):
             self.update_cookies(params[0])
             self.update_ua(params[1])
@@ -242,10 +279,3 @@ class Provider(Base, Abstract, Static, Callbacks, metaclass=ABCMeta):
         for k in cookies:
             self._storage['cookies'][k] = cookies[k]
             self.http().cookies[k] = cookies[k]
-
-    @property
-    def content(self):
-        content = self._storage.get('main_content', None)
-        if content is None:
-            content = self.get_main_content()
-        return content

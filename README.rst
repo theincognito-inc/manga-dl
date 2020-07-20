@@ -1,25 +1,35 @@
-Manga-Downloader |Travis CI result|
+Manga-py |Travis CI result|
 ===================================
 
 Universal assistant download manga.
 '''''''''''''''''''''''''''''''''''
 
-Approximately 300 providers are available now.
-''''''''''''''''''''''''''''''''''''''''''''''
+Approximately 200+ providers are available now.
+'''''''''''''''''''''''''''''''''''''''''''''''
 
-|Code Climate| |Issue Count| |PyPI - Python Version|
+|Scrutinizer CI result| |Scrutinizer CI coverage| |GitHub issues|
 
-|Scrutinizer CI result| |Scrutinizer CI coverage| |GitHub issues| |PyPi version|
+|Code Climate| |Issue Count| |GitHub repo size| |PyPI - size|
+
+|PyPI - Python Version| |PyPi version| |PyPI - Downloads|
 
 Supported resources
 -------------------
 
-see https://yuru-yuri.github.io/manga-dl/#resources-list
+see:
+
+- https://manga-py.com/manga-py/#resources-list
+- https://manga-py.github.io/manga-py/#resources-list (alternative)
+- https://yuru-yuri.github.io/manga-py/#resources-list (deprecated)
 
 Plans for improvement:
 ----------------------
 
-see https://yuru-yuri.github.io/manga-dl/improvement.html
+see:
+
+- https://manga-py.com/manga-py/improvement.html
+- https://manga-py.github.io/manga-py/improvement.html (alternative)
+
 
 How to use
 ----------
@@ -27,7 +37,7 @@ How to use
 Installation
 ~~~~~~~~~~~~
 
-1) Download python 3.5+ https://www.anaconda.com/downloads
+1) Download python 3.5+ https://docs.conda.io/en/latest/miniconda.html#windows-installers
 2) Install pip package:
 
    .. code:: bash
@@ -42,16 +52,22 @@ Installation
 
 Installation on the Android
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-See https://github.com/yuru-yuri/manga-dl/issues/48
+See https://github.com/manga-py/manga-py/issues/48
+
+Docker image:
+~~~~~~~~~~~~~
+See:
+
+- https://hub.docker.com/r/mangadl/manga-py/tags?page=1&ordering=last_updated
+- https://github.com/manga-py/manga-py-docker
 
 
 Downloading manga
 -----------------
 
-**:warning:For sites with cloudflare protect need installed Node.js**
+**:warning: For sites with cloudflare protect need installed Node.js**
 
-**:warning:Notice! By default, the mode of multithreaded image loading
-is enabled**
+**:warning: Notice! By default, the mode of multithreaded image loading is enabled**
 
 **To change this behavior, add the key --no-multi-threads**
 
@@ -72,6 +88,11 @@ is enabled**
     # Disable progressbar
     manga-py --no-progress http://manga-url-here/manga-name
 
+
+Embedded example:
+-----------------
+https://github.com/manga-py/manga-py/blob/stable_1.x/embedded.md
+
 Help
 ----
 
@@ -81,20 +102,87 @@ Help
     # or
     manga-py --help
 
-.. |Travis CI result| image:: https://travis-ci.org/yuru-yuri/manga-dl.svg?branch=stable_1.x
-   :target: https://travis-ci.org/yuru-yuri/manga-dl/branches
-.. |Code Climate| image:: https://codeclimate.com/github/yuru-yuri/manga-dl/badges/gpa.svg
-   :target: https://codeclimate.com/github/yuru-yuri/manga-dl
-.. |Issue Count| image:: https://codeclimate.com/github/yuru-yuri/manga-dl/badges/issue_count.svg
-   :target: https://codeclimate.com/github/yuru-yuri/manga-dl
+Suported by JetBrains
+---------------------
+|JetBrains logo|
+
+
+Manga-py Docker
+---------------
+
+1. Install docker
+
+  - Summary https://docs.docker.com/install/
+  - Mac https://docs.docker.com/docker-for-mac/install/
+  - Windows https://docs.docker.com/docker-for-windows/install/
+
+
+2. Install manga-py
+
+.. code:: bash
+    docker pull mangadl/manga-py
+
+
+3. Run it
+
+.. code:: bash
+
+    docker run -it -v ${PWD}:/home/manga mangadl/manga-py
+
+
+Or docker-compose:
+
+1. Install docker compose https://docs.docker.com/compose/install/
+
+2. Download manga-py-docker https://github.com/manga-py/manga-py-docker/archive/master.zip
+
+3. Unzip it
+
+4. Run compose
+
+.. code:: bash
+
+    # build docker
+    docker-compose build
+    # run it
+    docker-compose run manga_py
+
+
+For `manga-py >= 1.18`, the transfer of login / password / language / translation group has been added:
+
+.. code:: bash
+
+    manga-py http://... --arguments language=en login=my-login "password=secured-#\!Password" "translator=Awesome group"
+
+
+.. |Travis CI result| image:: https://travis-ci.com/manga-py/manga-py.svg?branch=stable_1.x
+   :target: https://travis-ci.com/manga-py/manga-py/branches
+.. |Code Climate| image:: https://codeclimate.com/github/manga-py/manga-py/badges/gpa.svg
+   :target: https://codeclimate.com/github/manga-py/manga-py
+.. |Issue Count| image:: https://codeclimate.com/github/manga-py/manga-py/badges/issue_count.svg
+   :target: https://codeclimate.com/github/manga-py/manga-py
 .. |PyPI - Python Version| image:: https://img.shields.io/pypi/pyversions/manga-py.svg
    :target: https://pypi.org/project/manga-py/
-.. |Scrutinizer CI result| image:: https://scrutinizer-ci.com/g/yuru-yuri/manga-dl/badges/quality-score.png?b=stable_1.x
-   :target: https://scrutinizer-ci.com/g/yuru-yuri/manga-dl
-.. |Scrutinizer CI coverage| image:: https://scrutinizer-ci.com/g/yuru-yuri/manga-dl/badges/coverage.png?b=stable_1.x
-   :target: https://scrutinizer-ci.com/g/yuru-yuri/manga-dl
-.. |GitHub issues| image:: https://img.shields.io/github/issues/yuru-yuri/manga-dl.svg
-   :target: https://github.com/yuru-yuri/manga-dl/issues
+.. |Scrutinizer CI result| image:: https://scrutinizer-ci.com/g/manga-py/manga-py/badges/quality-score.png?b=stable_1.x
+   :target: https://scrutinizer-ci.com/g/manga-py/manga-py
+.. |Scrutinizer CI coverage| image:: https://scrutinizer-ci.com/g/manga-py/manga-py/badges/coverage.png?b=stable_1.x
+   :target: https://scrutinizer-ci.com/g/manga-py/manga-py
+.. |GitHub issues| image:: https://img.shields.io/github/issues/manga-py/manga-py.svg
+   :target: https://github.com/manga-py/manga-py/issues
 .. |PyPi version| image:: https://badge.fury.io/py/manga-py.svg
    :alt: PyPI
    :target: https://pypi.org/project/manga-py/
+.. |JetBrains logo| image:: https://github.com/yuru-yuri/manga-py/raw/stable_1.x/.github/jetbrains.png
+   :alt: JetBrains
+   :target: https://www.jetbrains.com/?from=manga-py
+.. |MicroBadger Layers| image:: https://img.shields.io/microbadger/layers/mangadl/manga-py
+   :alt: MicroBadger Layers
+.. |MicroBadger Size| image:: https://img.shields.io/microbadger/image-size/mangadl/manga-py
+   :alt: MicroBadger Size
+.. |GitHub repo size| image:: https://img.shields.io/github/repo-size/manga-py/manga-py
+   :alt: GitHub repo size
+.. |PyPI - Downloads| image:: https://img.shields.io/pypi/dm/manga-py
+   :alt: PyPI - Downloads
+.. |PyPI - size| image:: https://img.shields.io/badge/dynamic/json?color=success&label=PyPI+size&query=%24.size&url=https://sttv.me/repo-size/manga-py.json?human-size
+   :alt: PyPI - size
+

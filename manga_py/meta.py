@@ -1,3 +1,15 @@
-__version__ = '1.3.32'
-__repo_name__ = 'yuru-yuri/manga-dl'
-__downloader_uri__ = 'https://github.com/%s' % __repo_name__
+author = 'Sergey Zharkov'
+license_type = 'MIT'
+email = 'sttv-pc@mail.ru'
+version = '1.19.13'
+repo_name = 'manga-py/manga-py'
+repo_url = 'https://github.com/%s' % repo_name
+
+__all__ = [
+    'author',
+    'license_type',
+    'email',
+    'version',
+    'repo_name',
+    'repo_url',
+]

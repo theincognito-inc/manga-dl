@@ -1,5 +1,7 @@
-from time import sleep
 from sys import stderr
+from time import sleep
+import requests
+from logging import warning, error
 
 from manga_py.fs import get_temp_path, make_dirs, remove_file_query_params, basename, path_join, dirname, file_size
 from .multi_threads import MultiThreads
@@ -9,6 +11,8 @@ from .url_normalizer import normalize_uri
 
 class Http(Request):
     count_retries = 20
+    has_error = False
+    mute = False
 
     def __init__(
             self,
@@ -35,39 +39,42 @@ class Http(Request):
                 raise AttributeError('{} type not {}'.format(name, _type))
             setattr(self, name, value)
 
-    def __download(self, file_name, url, method):
+    def _download(self, file_name, url, method):
         now_try_count = 0
-        while now_try_count < 10:
-            with open(file_name, 'wb') as out_file:
-                now_try_count += 1
-                response = self.requests(url, method=method, timeout=60, allow_redirects=True)
-                if response.status_code >= 400:
-                    self.debug and print('ERROR! Code {}\nUrl: {}'.format(
-                        response.status_code,
-                        url,
-                    ))
-                    sleep(2)
-                    continue
+        with open(file_name, 'wb') as out_file:
+            now_try_count += 1
+            response = self.requests(url, method=method, timeout=60, allow_redirects=True)
+            if response.status_code >= 400:
+                error('\nERROR! Code {}\nUrl: {}\n'.format(
+                    response.status_code,
+                    url,
+                ))
+                sleep(2)
+                if response.status_code == 403:
+                    response = requests.request(method=method, url=url, timeout=60, allow_redirects=True)
+
+            if response.status_code < 400:
                 out_file.write(response.content)
-                response.close()
-                out_file.close()
-                break
+
+            response.close()
+            out_file.close()
 
     def _safe_downloader(self, url, file_name, method='get') -> bool:
         try:
             make_dirs(dirname(file_name))
             url = self.normalize_uri(url)
-            self.__download(file_name, url, method)
+            self._download(file_name, url, method)
         except OSError as ex:
-            self.debug and print(ex)
+            error(ex)
             return False
         return True
 
-    def _download_one_file_helper(self, url, dst, callback: callable = None, success_callback: callable = None, callback_args=()):
+    def _download_one_file_helper(self, url, dst, callback: callable = None, success_callback: callable = None,
+                                  callback_args=()):
         r = 0
         while r < self.count_retries:
             if self._safe_downloader(url, dst):
-                if file_size(dst) < 128:
+                if file_size(dst) < 64:
                     return None
                 callable(success_callback) and success_callback(dst, *callback_args)
                 return True
@@ -76,6 +83,7 @@ class Http(Request):
             mode = 'Retry'
             if r >= self.count_retries:
                 mode = 'Skip image'
+                warning('%s: %s' % (mode, url))
             callable(callback) and callback(text=mode)
         return False
 
@@ -89,10 +97,11 @@ class Http(Request):
             name = basename(remove_file_query_params(url))
             dst = path_join(get_temp_path(), name)
         result = self._download_one_file_helper(url, dst, callback, success_callback, callback_args)
-        if result is None:
-            print('\nWarning: 0 bit image downloaded, please check for redirection or broken content', file=stderr)
+        if result is None and not self.mute:
+            self.has_error = True  # issue 161
+            warning('\nWarning: 0 bit image downloaded, please check for redirection or broken content')
             if ~idx:
-                print('Broken url: %s\nPage idx: %d' % (url, (1 + idx)), file=stderr)
+                warning('Broken url: %s\nPage idx: %d' % (url, (1 + idx)), file=stderr)
         return result
 
     def normalize_uri(self, uri, referer=None):

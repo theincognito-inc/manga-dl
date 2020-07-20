@@ -3,13 +3,13 @@ from .helpers.std import Std
 
 
 class OtakuSmashCom(Provider, Std):
-    selector = r'https?://[^/]+/(read-\w+/|reader/)?([^/]+)'
+    selector = r'https?://[^/]+/(comics/|read-\w+/|reader/)?([^/]+)'
     prefix = '/'
 
     def get_chapter_index(self) -> str:
         selector = self.selector + '/([^/]+)'
         idx = self.re.search(selector, self.chapter)
-        return '-'.join(*idx.group(3).split('.'))
+        return '-'.join(idx.group(3).split('.'))
 
     def get_main_content(self):
         return self.http_get(self._get_manga_url())
@@ -32,6 +32,7 @@ class OtakuSmashCom(Provider, Std):
         images = []
         _img = self._get_image(parser)
         _img and images.append(_img)
+        self.log('Get pages... Please, wait')
         for page in pages:
             parser = self.html_fromstring('{}{}/'.format(chapter, page.get('value')))
             _img = self._get_image(parser)
